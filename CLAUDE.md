@@ -10,8 +10,8 @@ Goal for the session: turn this into a product demo fast. Keep code small and re
 Vague prompt ("make me a financial product") -> find dead startups in that space, take them apart into parts (features, pricing, team, funding...), ask per part "did this cause the failure?", and stitch the surviving parts into a new product.
 
 - `app/api/autopsy/route.ts`: Parallel Responses API (`POST /v1/responses`, plain fetch, OpenAI-compatible, `reasoning.effort: low`, `text.format` JSON schema from `AutopsySchema` in `lib/franken.ts`) -> 4 dead startups x 4 parts in ~10s. The Task API gave the same data but took ~2 min.
-- `app/api/decide/route.ts`: Parallel Decisions API (`POST /v1/decisions`, plain fetch, not in the SDK). One request per startup, one `noul` question per part; answer is the probability the part caused the failure. Under 1s.
-- `app/page.tsx`: runs autopsy, then decide per startup in parallel. Parts with blame < `KEEP_BELOW` (0.5) are copied. Autopsy results are cached in `localStorage` per prompt as a demo safety net; Decisions always run live.
+- `app/api/decide/route.ts`: Parallel Decisions API (`POST /v1/decisions`, plain fetch, not in the SDK). One request per startup, three questions per part acting as a jury (`JUDGES` in `lib/franken.ts`): Coroner (`noul`: did it cause the death), VC (`choice`: copy/bury/unknown), Gambler (`score`: mistake..strength). Majority of judges who voted decides; `split` marks disagreement. Under 1s.
+- `app/page.tsx`: dark "mad scientist lab" UI. Idea chips for one-click runs, monster card with a mashed-up name, survival odds, organ stickers (click for the jury card, scissors to rip out), tombstones where each part can be toggled by the human. Styles and animations in `app/globals.css`; display font Creepster via `next/font`.
 - The older `/api/search` and `/api/task` routes and `lib/brief.ts` are unused by the page now.
 
 ## Stack
@@ -39,7 +39,7 @@ lib/brief.ts              Claude helper: excerpts -> Brief; plus no-LLM fallback
 - `BriefSchema` in `lib/types.ts` is the single place to change the output shape. It feeds Claude's structured output, the Parallel Task `output_schema` (via `z.toJSONSchema`), and the UI. If you add fields, render them in `Results` in `app/page.tsx`.
 - API keys are server-only: use them in `app/api/**` and `lib/**`, never in client components, never `NEXT_PUBLIC_`.
 - Things meant to be tweaked are marked `EDIT ME` (app name, prompt, schema, processor).
-- Tailwind utility classes inline; light theme only, large type (projector).
+- Tailwind utility classes inline; dark lab theme, large type (projector).
 
 ## Parallel API notes (checked against docs.parallel.ai and the installed SDK types)
 

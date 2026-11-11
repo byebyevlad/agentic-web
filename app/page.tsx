@@ -1,14 +1,30 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { Startup, Verdict } from "@/lib/franken";
+import { JUDGES, type Startup, type Verdict } from "@/lib/franken";
 import type { Source } from "@/lib/types";
 
-const APP_NAME = "Frankenstartup";
-const TAGLINE = "Dead startups, taken apart. The parts that didn't kill them, stitched into yours.";
-const PLACEHOLDER = "e.g. make me a financial product";
+// EDIT ME: one-click prompts.
+const IDEAS = [
+  "💸 a financial product",
+  "🍔 food delivery",
+  "💘 a dating app",
+  "🛴 scooter rental",
+  "🥽 a VR thing",
+  "📺 streaming service",
+];
 
-type Phase = "idle" | "autopsy" | "deciding" | "done";
+const ORGANS: Record<string, string> = {
+  feature: "💪",
+  pricing: "👛",
+  "business model": "🧠",
+  "go-to-market": "👄",
+  team: "🫀",
+  funding: "🩸",
+};
+const organ = (kind: string) => ORGANS[kind.toLowerCase().trim()] ?? "🦴";
+
+type Phase = "idle" | "digging" | "jury" | "alive";
 
 async function post<T>(url: string, body: unknown): Promise<T> {
   const res = await fetch(url, {
@@ -21,55 +37,47 @@ async function post<T>(url: string, body: unknown): Promise<T> {
   return data;
 }
 
+// "Munchery" + "Sprig" + "Maple" -> "Munsprimap.ly"
+function monsterName(names: string[]) {
+  const bits = names.map((n) => n.replace(/[^a-zA-Z]/g, "").slice(0, 3).toLowerCase());
+  const s = bits.join("") || "blob";
+  return s[0].toUpperCase() + s.slice(1) + ".ly";
+}
+
 export default function Home() {
   const [query, setQuery] = useState("");
   const [phase, setPhase] = useState<Phase>("idle");
-  const [seconds, setSeconds] = useState(0);
   const [startups, setStartups] = useState<Startup[]>([]);
   const [verdicts, setVerdicts] = useState<Record<string, Verdict[]>>({});
+  const [flipped, setFlipped] = useState<Record<string, boolean>>({}); // human overrides
   const [sources, setSources] = useState<Source[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [open, setOpen] = useState<string | null>(null);
 
-  const busy = phase === "autopsy" || phase === "deciding";
+  const busy = phase === "digging" || phase === "jury";
 
-  useEffect(() => {
-    if (!busy) return;
-    const started = Date.now();
-    const id = setInterval(() => setSeconds(Math.floor((Date.now() - started) / 1000)), 500);
-    return () => clearInterval(id);
-  }, [busy]);
-
-  async function run(e: React.FormEvent) {
-    e.preventDefault();
-    if (!query.trim() || busy) return;
-    setPhase("autopsy");
-    setSeconds(0);
+  async function raise(q: string) {
+    const prompt = q.trim();
+    if (!prompt || busy) return;
+    setQuery(prompt);
+    setPhase("digging");
     setError(null);
     setStartups([]);
     setVerdicts({});
+    setFlipped({});
     setSources([]);
+    setOpen(null);
     try {
-      // 1. Parallel Responses: find dead startups and take them apart (~10s).
-      //    Cached in this browser per prompt as a demo safety net; step 2
-      //    always runs live.
-      type AutopsyResult = { startups: Startup[]; sources: Source[] };
-      const cacheKey = `autopsy:${query.trim().toLowerCase()}`;
-      let autopsy: AutopsyResult | null = null;
-      try {
-        autopsy = JSON.parse(localStorage.getItem(cacheKey) ?? "null");
-      } catch {}
-      if (!autopsy) {
-        autopsy = await post<AutopsyResult>("/api/autopsy", { query });
-        try {
-          localStorage.setItem(cacheKey, JSON.stringify(autopsy));
-        } catch {}
-      }
-      if (autopsy.startups.length === 0) throw new Error("No dead startups found. Try another prompt.");
+      // 1. Parallel Responses: dig up dead startups and take them apart (~10s).
+      const autopsy = await post<{ startups: Startup[]; sources: Source[] }>("/api/autopsy", {
+        query: prompt,
+      });
+      if (autopsy.startups.length === 0) throw new Error("The graveyard is empty. Try another idea.");
       setStartups(autopsy.startups);
       setSources(autopsy.sources);
-      setPhase("deciding");
+      setPhase("jury");
 
-      // 2. Parallel Decisions: one call per startup, one question per part.
+      // 2. Parallel Decisions: a jury of three judges rules on every part.
       await Promise.all(
         autopsy.startups.map(async (s) => {
           const d = await post<{ verdicts: Verdict[]; sources: Source[] }>("/api/decide", {
@@ -82,164 +90,295 @@ export default function Home() {
           });
         }),
       );
-      setPhase("done");
+      setPhase("alive");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
       setPhase("idle");
     }
   }
 
+  const key = (v: Verdict) => `${v.startup}::${v.part.name}`;
+  const isKept = (v: Verdict) => (flipped[key(v)] ? !v.keep : v.keep);
+  const toggle = (v: Verdict) => setFlipped((f) => ({ ...f, [key(v)]: !f[key(v)] }));
+
   const all = Object.values(verdicts).flat();
-  const kept = all.filter((v) => v.keep).sort((a, b) => (a.blame ?? 0) - (b.blame ?? 0));
-  const rejected = all.filter((v) => !v.keep);
+  const kept = all.filter(isKept);
+  const odds = kept.length
+    ? Math.round((kept.reduce((s, v) => s + (v.confidence ?? 0.5), 0) / kept.length) * 100)
+    : 0;
+  const donors = [...new Set(kept.map((v) => v.startup))];
+  const opened = all.find((v) => key(v) === open);
 
   return (
-    <main className="mx-auto w-full max-w-5xl flex-1 px-6 py-12 sm:py-16">
-      <header className="mb-10">
-        <h1 className="text-4xl font-semibold tracking-tight sm:text-5xl">🧟 {APP_NAME}</h1>
-        <p className="mt-3 max-w-3xl text-xl text-neutral-500">{TAGLINE}</p>
+    <main className="mx-auto w-full max-w-6xl flex-1 px-5 py-10">
+      <header className="text-center">
+        <h1 className="font-creepy text-6xl tracking-wide text-lime-300 drop-shadow-[0_0_25px_rgba(163,230,53,0.5)] sm:text-8xl">
+          <span className="wobble inline-block">🧟</span> Frankenstartup
+        </h1>
+        <p className="mt-3 text-xl text-lime-100/70 sm:text-2xl">
+          Dig up dead startups. Steal the good organs. Leave what killed them.
+        </p>
       </header>
 
-      <form onSubmit={run} className="flex flex-col gap-3 sm:flex-row">
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          raise(query);
+        }}
+        className="mx-auto mt-8 flex max-w-3xl flex-col gap-3 sm:flex-row"
+      >
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder={PLACEHOLDER}
+          placeholder="I want to build…"
           aria-label="What do you want to build?"
-          autoFocus
-          className="min-w-0 flex-1 rounded-xl border border-neutral-300 bg-white px-5 py-4 text-xl outline-none focus:border-neutral-900 focus:ring-2 focus:ring-neutral-900/10"
+          className="min-w-0 flex-1 rounded-2xl border-2 border-lime-400/40 bg-black/40 px-5 py-4 text-2xl text-lime-50 outline-none placeholder:text-lime-100/30 focus:border-lime-300"
         />
         <button
           type="submit"
           disabled={busy || !query.trim()}
-          className="rounded-xl bg-neutral-900 px-8 py-4 text-xl font-medium text-white transition hover:bg-neutral-700 disabled:cursor-not-allowed disabled:opacity-40"
+          className="rounded-2xl bg-lime-400 px-7 py-4 text-2xl font-black text-black transition hover:scale-105 hover:bg-lime-300 active:scale-95 disabled:opacity-40"
         >
-          {busy ? "Digging…" : "Raise it"}
+          ⚡ RAISE THE DEAD
         </button>
       </form>
 
-      <section className="mt-10 space-y-12" aria-live="polite">
-        {busy && (
-          <div className="flex items-center gap-4 text-xl text-neutral-500">
-            <span className="size-5 animate-spin rounded-full border-2 border-neutral-300 border-t-neutral-900" />
-            {phase === "autopsy"
-              ? "Digging up dead startups and taking them apart"
-              : "Asking, part by part: did this kill them?"}
-            … {seconds}s
-          </div>
+      <div className="mx-auto mt-4 flex max-w-3xl flex-wrap justify-center gap-2">
+        {IDEAS.map((idea) => (
+          <button
+            key={idea}
+            disabled={busy}
+            onClick={() => raise(idea.replace(/^\S+\s/, ""))}
+            className="rounded-full border border-lime-400/30 bg-lime-400/10 px-4 py-1.5 text-lg text-lime-100 transition hover:-rotate-2 hover:scale-110 hover:bg-lime-400/25 disabled:opacity-40"
+          >
+            {idea}
+          </button>
+        ))}
+      </div>
+
+      <section className="mt-10 space-y-10" aria-live="polite">
+        {phase === "digging" && (
+          <Loading emoji="⛏️" text="Digging up dead startups…" sub="robbing graves on the live web" />
+        )}
+        {phase === "jury" && (
+          <Loading
+            emoji={JUDGES.map((j) => j.emoji).join(" ")}
+            text="The jury is arguing over every organ…"
+            sub="three judges, one question each: copy it or bury it?"
+          />
         )}
 
         {error && (
-          <div className="rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-lg text-red-800">
-            {error}
+          <div className="mx-auto max-w-3xl rounded-2xl border-2 border-red-500/60 bg-red-950/60 px-5 py-4 text-center text-xl text-red-200">
+            💀 {error}
           </div>
         )}
 
-        {phase === "done" && <Monster query={query} kept={kept} rejected={rejected} />}
+        {phase === "alive" && (
+          <article className="alive relative rounded-3xl border-4 border-lime-400 bg-gradient-to-b from-lime-950/80 to-black/60 p-6 sm:p-8">
+            <p className="font-creepy text-center text-4xl text-lime-300 sm:text-5xl">⚡ IT&apos;S ALIVE! ⚡</p>
+            <h2 className="mt-2 text-center text-5xl font-black tracking-tight text-white sm:text-7xl">
+              {monsterName(donors)}
+            </h2>
+            <p className="mt-2 text-center text-xl text-lime-100/70">
+              {query} · stitched from {donors.length} corpses · {kept.length} organs
+            </p>
+
+            <div className="mx-auto mt-5 max-w-xl">
+              <div className="flex justify-between text-lg font-bold text-lime-200">
+                <span>Survival odds</span>
+                <span className="tabular-nums">{odds}%</span>
+              </div>
+              <div className="mt-1 h-5 overflow-hidden rounded-full bg-black/60">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-red-500 via-yellow-400 to-lime-400 transition-all duration-500"
+                  style={{ width: `${odds}%` }}
+                />
+              </div>
+            </div>
+
+            <div className="mt-7 flex flex-wrap justify-center gap-4">
+              {kept.map((v, i) => (
+                <Organ
+                  key={key(v)}
+                  v={v}
+                  tilt={((i * 37) % 9) - 4}
+                  onInfo={() => setOpen(key(v))}
+                  onRip={() => toggle(v)}
+                />
+              ))}
+              {kept.length === 0 && (
+                <p className="text-2xl text-lime-100/60">You buried everything. It&apos;s a ghost. 👻</p>
+              )}
+            </div>
+            <p className="mt-6 text-center text-base text-lime-100/50">
+              Tap an organ to see the jury. ✂️ rips it out. Dig buried parts back up in the graveyard.
+            </p>
+          </article>
+        )}
 
         {startups.length > 0 && (
           <div>
-            <SectionTitle>The graveyard</SectionTitle>
-            <div className="mt-4 grid gap-5 md:grid-cols-2">
+            <h3 className="font-creepy text-center text-4xl text-lime-200/80">The Graveyard</h3>
+            <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
               {startups.map((s) => (
-                <Grave key={s.name} startup={s} verdicts={verdicts[s.name]} />
+                <div
+                  key={s.name}
+                  className="pop rounded-t-[5rem] rounded-b-xl border-2 border-stone-500/60 bg-stone-800/70 px-5 pb-5 pt-9 text-center"
+                >
+                  <p className="font-creepy text-2xl text-stone-400">R.I.P.</p>
+                  <p className="text-2xl font-black text-white">{s.name}</p>
+                  <p className="text-lg text-stone-400">† {s.died}</p>
+                  <p className="mt-2 line-clamp-3 text-sm text-red-300/90" title={s.cause_of_death}>
+                    ☠️ {s.cause_of_death}
+                  </p>
+                  <div className="mt-4 flex flex-wrap justify-center gap-2">
+                    {s.parts.map((p, i) => {
+                      const v = verdicts[s.name]?.[i];
+                      if (!v) {
+                        return (
+                          <span key={i} className="animate-pulse rounded-full bg-stone-700 px-3 py-1 text-sm text-stone-400">
+                            {organ(p.kind)} {p.name}
+                          </span>
+                        );
+                      }
+                      const on = isKept(v);
+                      return (
+                        <button
+                          key={i}
+                          onClick={() => toggle(v)}
+                          title={on ? "Stitched in. Click to bury." : "Buried. Click to dig up."}
+                          className={`rounded-full px-3 py-1 text-sm font-semibold transition hover:scale-110 ${
+                            on
+                              ? "bg-lime-400 text-black"
+                              : "bg-stone-900 text-stone-500 line-through decoration-red-500"
+                          }`}
+                        >
+                          {on ? organ(p.kind) : "⚰️"} {p.name}
+                          {v.split && " ⚡"}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
               ))}
             </div>
+            <p className="mt-4 text-center text-sm text-stone-500">
+              ⚡ = the jury disagreed. Verdicts are estimates from web evidence, not facts.
+            </p>
           </div>
         )}
 
-        {sources.length > 0 && phase === "done" && (
-          <div className="border-t border-neutral-200 pt-6">
-            <SectionTitle>Sources</SectionTitle>
-            <ol className="mt-3 grid gap-x-8 gap-y-1.5 md:grid-cols-2">
-              {sources.slice(0, 16).map((s) => (
+        {sources.length > 0 && phase === "alive" && (
+          <details className="mx-auto max-w-3xl text-stone-400">
+            <summary className="cursor-pointer text-center text-lg">📜 {sources.length} sources</summary>
+            <ol className="mt-3 space-y-1">
+              {sources.slice(0, 20).map((s) => (
                 <li key={s.url} className="truncate text-sm">
-                  <a
-                    href={s.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="underline decoration-neutral-300 underline-offset-4 hover:decoration-neutral-900"
-                  >
+                  <a href={s.url} target="_blank" rel="noreferrer" className="underline underline-offset-4 hover:text-lime-200">
                     {s.title}
                   </a>
                 </li>
               ))}
             </ol>
-          </div>
+          </details>
         )}
       </section>
+
+      {opened && <JuryCard v={opened} onClose={() => setOpen(null)} />}
     </main>
   );
 }
 
-function SectionTitle({ children }: { children: React.ReactNode }) {
+function Loading({ emoji, text, sub }: { emoji: string; text: string; sub: string }) {
   return (
-    <h3 className="text-sm font-semibold uppercase tracking-widest text-neutral-400">{children}</h3>
+    <div className="text-center">
+      <p className="wobble text-7xl">{emoji}</p>
+      <p className="font-creepy mt-3 text-4xl text-lime-200">{text}</p>
+      <p className="mt-1 text-lg text-lime-100/50">{sub}</p>
+    </div>
   );
 }
 
-const pct = (n: number | null) => (n === null ? "n/a" : `${Math.round(n * 100)}%`);
-
-function Monster({ query, kept, rejected }: { query: string; kept: Verdict[]; rejected: Verdict[] }) {
+function Organ({
+  v,
+  tilt,
+  onInfo,
+  onRip,
+}: {
+  v: Verdict;
+  tilt: number;
+  onInfo: () => void;
+  onRip: () => void;
+}) {
   return (
-    <article className="rounded-2xl border-2 border-emerald-600 bg-white p-6 sm:p-8">
-      <SectionTitle>Your Frankenstartup</SectionTitle>
-      <h2 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">{query}</h2>
-      <p className="mt-2 text-lg text-neutral-500">
-        {kept.length} parts copied, {rejected.length} left in the grave.
-      </p>
-      <ul className="mt-6 space-y-4">
-        {kept.map((v, i) => (
-          <li key={i} className="flex gap-4">
-            <span className="mt-1 text-xl">🧩</span>
-            <div className="min-w-0">
-              <p className="text-xl font-semibold">
-                {v.part.name}
-                <span className="ml-3 rounded-full bg-neutral-100 px-2.5 py-0.5 text-sm font-normal text-neutral-500">
-                  {v.part.kind}
-                </span>
-              </p>
-              <p className="text-lg leading-relaxed text-neutral-700">{v.part.detail}</p>
-              <p className="text-sm text-neutral-400">
-                from {v.startup} · {pct(v.blame)} chance it caused the failure
-              </p>
+    <div
+      style={{ transform: `rotate(${tilt}deg)` }}
+      className="pop group relative w-44 rounded-2xl border-2 border-dashed border-lime-300/70 bg-lime-200 p-3 text-center text-black shadow-lg transition hover:z-10 hover:!rotate-0 hover:scale-110"
+    >
+      <button onClick={onInfo} className="block w-full" title={v.part.detail}>
+        <span className="text-5xl">{organ(v.part.kind)}</span>
+        <span className="mt-1 block text-lg font-black leading-tight">{v.part.name}</span>
+        <span className="block text-xs text-black/60">from {v.startup}</span>
+        <span className="mt-1 block text-lg tracking-widest">
+          {v.votes.map((x) => (x.copy === null ? "🤷" : x.copy >= 0.5 ? "👍" : "👎")).join("")}
+        </span>
+      </button>
+      <button
+        onClick={onRip}
+        title="Rip it out"
+        className="absolute -right-2 -top-2 rounded-full bg-black px-2 py-1 text-sm opacity-0 transition group-hover:opacity-100"
+      >
+        ✂️
+      </button>
+    </div>
+  );
+}
+
+function JuryCard({ v, onClose }: { v: Verdict; onClose: () => void }) {
+  useEffect(() => {
+    const esc = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", esc);
+    return () => window.removeEventListener("keydown", esc);
+  }, [onClose]);
+
+  return (
+    <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/70 p-5" onClick={onClose}>
+      <div
+        className="pop w-full max-w-lg rounded-3xl border-4 border-lime-400 bg-stone-900 p-6 text-lime-50"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <p className="text-center text-6xl">{organ(v.part.kind)}</p>
+        <h3 className="mt-2 text-center text-3xl font-black">{v.part.name}</h3>
+        <p className="text-center text-stone-400">
+          {v.part.kind} · harvested from {v.startup}
+        </p>
+        <p className="mt-3 text-center text-lg">{v.part.detail}</p>
+        <div className="mt-5 space-y-3">
+          {v.votes.map((x) => (
+            <div key={x.judge.id} className="flex items-center gap-3">
+              <span className="text-4xl">{x.judge.emoji}</span>
+              <div className="min-w-0 flex-1">
+                <p className="font-bold">
+                  {x.judge.name} <span className="font-normal text-stone-400">“{x.judge.asks}”</span>
+                </p>
+                <div className="mt-1 h-3 overflow-hidden rounded-full bg-black">
+                  <div
+                    className={`h-full ${x.copy !== null && x.copy >= 0.5 ? "bg-lime-400" : "bg-red-500"}`}
+                    style={{ width: `${Math.round((x.copy ?? 0) * 100)}%` }}
+                  />
+                </div>
+              </div>
+              <span className="w-16 text-right text-lg font-bold tabular-nums">
+                {x.copy === null ? "🤷" : `${Math.round(x.copy * 100)}%`}
+              </span>
             </div>
-          </li>
-        ))}
-      </ul>
-    </article>
-  );
-}
-
-function Grave({ startup, verdicts }: { startup: Startup; verdicts?: Verdict[] }) {
-  return (
-    <div className="rounded-2xl border border-neutral-200 bg-white p-5">
-      <p className="text-xl font-semibold">
-        🪦 {startup.name} <span className="font-normal text-neutral-400">† {startup.died}</span>
-      </p>
-      <p className="mt-1 text-base text-neutral-600">{startup.what_it_did}</p>
-      <p className="mt-1 text-base text-red-700">{startup.cause_of_death}</p>
-      <ul className="mt-4 space-y-2">
-        {startup.parts.map((p, i) => {
-          const v = verdicts?.[i];
-          return (
-            <li key={i} className="flex items-baseline justify-between gap-3 text-base">
-              <span className={v && !v.keep ? "text-neutral-400 line-through" : ""}>{p.name}</span>
-              {v ? (
-                <span
-                  className={`shrink-0 rounded-full px-2.5 py-0.5 text-sm font-medium tabular-nums ${
-                    v.keep ? "bg-emerald-100 text-emerald-800" : "bg-red-100 text-red-800"
-                  }`}
-                >
-                  {v.keep ? "copy" : "bury"} · {pct(v.blame)}
-                </span>
-              ) : (
-                <span className="shrink-0 text-sm text-neutral-300">deciding…</span>
-              )}
-            </li>
-          );
-        })}
-      </ul>
+          ))}
+        </div>
+        <button onClick={onClose} className="mt-6 w-full rounded-xl bg-lime-400 py-2.5 text-xl font-black text-black">
+          Back to the lab
+        </button>
+      </div>
     </div>
   );
 }

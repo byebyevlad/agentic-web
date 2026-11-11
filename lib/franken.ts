@@ -30,13 +30,24 @@ export const AutopsySchema = z.object({
 export type Autopsy = z.infer<typeof AutopsySchema>;
 export type Startup = Autopsy["startups"][number];
 
-// ── Step 2 output: a verdict per part ──────────────────────────────────────
+// ── Step 2 output: a jury verdict per part ─────────────────────────────────
+// Three Parallel Decisions question types act as three judges.
+export const JUDGES = [
+  { id: "coroner", emoji: "🧑‍⚕️", name: "The Coroner", asks: "Did this kill them?" },
+  { id: "vc", emoji: "🤑", name: "The VC", asks: "Would you copy it?" },
+  { id: "gambler", emoji: "🎲", name: "The Gambler", asks: "Mistake or strength?" },
+] as const;
+
+export type JudgeVote = {
+  judge: (typeof JUDGES)[number];
+  copy: number | null; // confidence the part is worth copying, 0..1 (null = abstained)
+};
+
 export type Verdict = {
   part: Startup["parts"][number];
   startup: string;
-  blame: number | null; // probability this part caused the failure (null = no answer)
-  keep: boolean;
+  votes: JudgeVote[];
+  confidence: number | null; // mean of the judges who voted
+  keep: boolean; // majority says copy
+  split: boolean; // the judges disagreed
 };
-
-// EDIT ME: a part is copied when its blame probability is below this.
-export const KEEP_BELOW = 0.5;
