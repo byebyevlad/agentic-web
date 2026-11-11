@@ -48,7 +48,7 @@ export type Design = Startup["design"];
 // ── Step 2 output: a jury verdict per part ─────────────────────────────────
 // Three Parallel Decisions question types act as three judges.
 export const JUDGES = [
-  { id: "coroner", emoji: "🧑‍⚕️", name: "The Coroner", asks: "Did this kill them?" },
+  { id: "coroner", emoji: "🧑‍⚕️", name: "The Coroner", asks: "Innocent of the death?" },
   { id: "vc", emoji: "🤑", name: "The VC", asks: "Would you copy it?" },
   { id: "gambler", emoji: "🎲", name: "The Gambler", asks: "Mistake or strength?" },
 ] as const;
