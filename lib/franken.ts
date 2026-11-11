@@ -7,7 +7,7 @@ export const AutopsySchema = z.object({
       z.object({
         name: z.string().describe("Name of a real startup that failed or shut down"),
         what_it_did: z.string().describe("One sentence on what the startup did"),
-        died: z.string().describe("Year it shut down, e.g. 2023"),
+        died: z.string().describe("Year it shut down, e.g. 2023. Just the year, or \"unknown\"."),
         cause_of_death: z.string().describe("One sentence on why it failed"),
         parts: z
           .array(
@@ -20,11 +20,11 @@ export const AutopsySchema = z.object({
             }),
           )
           .describe(
-            "5 distinct product features and business decisions of this startup, a mix of good ones and ones that hurt it",
+            "Distinct product features and business decisions of this startup, a mix of good ones and ones that hurt it",
           ),
       }),
     )
-    .describe("4 well-documented failed startups in the requested space"),
+    .describe("Well-documented failed startups in the requested space"),
 });
 
 export type Autopsy = z.infer<typeof AutopsySchema>;

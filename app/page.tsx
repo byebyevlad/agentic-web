@@ -49,9 +49,9 @@ export default function Home() {
     setVerdicts({});
     setSources([]);
     try {
-      // 1. Parallel Task: find dead startups and take them apart.
-      //    This step takes 1-2 minutes, so the result is cached in this browser
-      //    per prompt. Step 2 always runs live.
+      // 1. Parallel Responses: find dead startups and take them apart (~10s).
+      //    Cached in this browser per prompt as a demo safety net; step 2
+      //    always runs live.
       type AutopsyResult = { startups: Startup[]; sources: Source[] };
       const cacheKey = `autopsy:${query.trim().toLowerCase()}`;
       let autopsy: AutopsyResult | null = null;
