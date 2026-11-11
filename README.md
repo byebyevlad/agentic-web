@@ -2,6 +2,8 @@
 
 Hackathon starter: Next.js + Parallel (web search / deep research) + optional Claude brief.
 
+Live: https://agentic-web-rho.vercel.app
+
 ## Run locally
 
 ```bash
