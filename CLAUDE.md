@@ -11,7 +11,9 @@ Vague prompt ("make me a financial product") -> find dead startups in that space
 
 - `app/api/autopsy/route.ts`: Parallel Responses API (`POST /v1/responses`, plain fetch, OpenAI-compatible, `reasoning.effort: low`, `text.format` JSON schema from `AutopsySchema` in `lib/franken.ts`) -> 4 dead startups x 4 parts in ~10s. The Task API gave the same data but took ~2 min.
 - `app/api/decide/route.ts`: Parallel Decisions API (`POST /v1/decisions`, plain fetch, not in the SDK). One request per startup, three questions per part acting as a jury (`JUDGES` in `lib/franken.ts`): Coroner (`noul`: did it cause the death), VC (`choice`: copy/bury/unknown), Gambler (`score`: mistake..strength). Majority of judges who voted decides; `split` marks disagreement. Under 1s.
-- `app/page.tsx`: dark "mad scientist lab" UI. Idea chips for one-click runs, monster card with a mashed-up name, survival odds, organ stickers (click for the jury card, scissors to rip out), tombstones where each part can be toggled by the human. Styles and animations in `app/globals.css`; display font Creepster via `next/font`.
+- `app/api/mvp/route.ts`: Parallel Responses API with `MvpSchema` -> name, tagline, pitch, 3 features, price, CTA for the stitched startup (~3s).
+- `app/page.tsx`: dark "mad scientist lab" game. Idea chips for one-click runs. After the jury, all organs sit on a tray with verdicts hidden; the player drags (or taps) them onto the slab, each drop reveals the verdict and moves the live success rating. "I'm lazy" auto-picks the jury's choices. "Build my MVP" renders the generated landing page in a fake browser with a download button. Styles and animations in `app/globals.css`; display font Creepster via `next/font`.
+- Dev quirk: Turbopack sometimes misses files changed from the shell; restart `npm run dev` if a change does not show.
 - The older `/api/search` and `/api/task` routes and `lib/brief.ts` are unused by the page now.
 
 ## Stack

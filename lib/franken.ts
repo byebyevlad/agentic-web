@@ -51,3 +51,24 @@ export type Verdict = {
   keep: boolean; // majority says copy
   split: boolean; // the judges disagreed
 };
+
+// ── Step 3 output: the startup idea and its landing page content ───────────
+export const MvpSchema = z.object({
+  name: z.string().describe("A catchy one-word startup name"),
+  emoji: z.string().describe("One emoji that works as the logo"),
+  tagline: z.string().describe("Landing page headline, under 10 words"),
+  pitch: z.string().describe("Two sentences: what it is and why it will not die like its donors"),
+  features: z
+    .array(
+      z.object({
+        emoji: z.string().describe("One emoji"),
+        title: z.string().describe("Feature name, 2-4 words"),
+        text: z.string().describe("One sentence"),
+      }),
+    )
+    .describe("Exactly 3 features, each based on one of the stitched parts"),
+  price: z.string().describe("Pricing in a few words, e.g. '$9/month, first month free'"),
+  cta: z.string().describe("Call-to-action button text, 2-4 words"),
+});
+
+export type Mvp = z.infer<typeof MvpSchema>;
