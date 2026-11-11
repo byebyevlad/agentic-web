@@ -45,7 +45,8 @@ export async function POST(req: Request) {
           `The user wants to build: "${query.trim()}". ` +
           `Find ${STARTUPS} real failed, shut-down startups in that space with documented post-mortems ` +
           `and break each into ${PARTS} concrete product features or business decisions it made while ` +
-          `operating (a mix of good ones and ones that hurt it; nothing that happened after it failed).`,
+          `operating (a mix of good ones and ones that hurt it; nothing that happened after it failed). ` +
+          `Also record each startup's real visual identity: brand colours, typeface style, shapes and website layout.`,
       }),
     });
     if (!res.ok) throw new Error(`Responses ${res.status}: ${await res.text()}`);

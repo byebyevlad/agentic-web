@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { JUDGES, type Mvp, type Startup, type Verdict } from "@/lib/franken";
+import { MvpSite, mixSkin, type Skin } from "./mvp-site";
 
 // EDIT ME: one-click prompts.
 const IDEAS = [
@@ -20,6 +21,7 @@ const ORGANS: Record<string, string> = {
   "go-to-market": "👄",
   team: "🫀",
   funding: "🩸",
+  design: "🎨",
 };
 const organ = (kind: string) => ORGANS[kind.toLowerCase().trim()] ?? "🦴";
 
@@ -57,6 +59,7 @@ export default function Home() {
   const [hover, setHover] = useState(false);
   const [open, setOpen] = useState<Verdict | null>(null);
   const [mvp, setMvp] = useState<Mvp | null>(null);
+  const [skin, setSkin] = useState<Skin>(mixSkin([]));
   const [building, setBuilding] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -82,7 +85,22 @@ export default function Home() {
 
       // 2. Parallel Decisions: a jury of three judges rules on every part.
       const all = await Promise.all(
-        autopsy.startups.map((s) => post<{ verdicts: Verdict[] }>("/api/decide", { startup: s })),
+        autopsy.startups.map((s) =>
+          post<{ verdicts: Verdict[] }>("/api/decide", {
+            startup: {
+              ...s,
+              // The startup's look is one more organ for the jury to judge.
+              parts: [
+                ...s.parts,
+                {
+                  name: `${s.name}'s look`,
+                  kind: "design",
+                  detail: `Its brand and website design: ${s.design.vibe}; ${s.design.font} type, ${s.design.corners} corners, ${s.design.layout} layout.`,
+                },
+              ],
+            },
+          }),
+        ),
       );
       // Shuffle so good and bad organs are mixed on the tray.
       const flat = all.flatMap((d) => d.verdicts);
@@ -119,8 +137,17 @@ export default function Home() {
     setBuilding(true);
     setError(null);
     try {
-      const parts = onSlab.map((v) => ({ name: v.part.name, detail: v.part.detail, startup: v.startup }));
-      setMvp(await post<Mvp>("/api/mvp", { query, parts }));
+      const looks = onSlab.filter((v) => v.part.kind === "design");
+      const organs = onSlab.filter((v) => v.part.kind !== "design");
+      const parts = (organs.length ? organs : onSlab).map((v) => ({
+        name: v.part.name,
+        detail: v.part.detail,
+        startup: v.startup,
+      }));
+      // Stitch the skin from every look on the slab, in the order they were added.
+      const next = mixSkin(looks.map((v) => ({ startup: v.startup, design: designOf(v)! })).filter((d) => d.design));
+      setSkin(next);
+      setMvp(await post<Mvp>("/api/mvp", { query, parts, vibes: looks.length ? [next.vibe] : [] }));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
@@ -128,6 +155,18 @@ export default function Home() {
     }
   }
 
+  const designOf = (v: Verdict) => startups.find((s) => s.name === v.startup)?.design;
+  const swatches = (v: Verdict) => {
+    const d = v.part.kind === "design" ? designOf(v) : undefined;
+    if (!d) return null;
+    return (
+      <span className="mt-1 flex justify-center gap-1">
+        {[d.primary, d.accent, d.background].map((c, i) => (
+          <span key={i} className="size-5 rounded-full border border-black/30" style={{ background: c }} />
+        ))}
+      </span>
+    );
+  };
   const onSlab = picked.map((k) => verdicts.find((v) => key(v) === k)!).filter(Boolean);
   const onTray = verdicts.filter((v) => !picked.includes(key(v)));
   const score = onSlab.length
@@ -207,7 +246,8 @@ export default function Home() {
                 <h3 className="font-creepy text-3xl text-lime-200/90">🧺 Organ tray</h3>
                 <p className="text-base text-lime-100/50">
                   Harvested from {startups.map((s) => s.name).join(", ")}. Some of these killed their
-                  host. Drag (or tap) the ones you trust.
+                  host. Drag (or tap) the ones you trust. 🎨 looks decide how your MVP is dressed: mix
+                  several for a true Frankenstein.
                 </p>
                 <div className="mt-4 flex flex-wrap gap-3">
                   {onTray.map((v, i) => (
@@ -222,6 +262,7 @@ export default function Home() {
                     >
                       <span className="block text-4xl">{organ(v.part.kind)}</span>
                       <span className="mt-1 block text-base font-black leading-tight">{v.part.name}</span>
+                      {swatches(v)}
                       <span className="block text-xs text-black/50">🪦 {v.startup}</span>
                     </button>
                   ))}
@@ -279,6 +320,7 @@ export default function Home() {
                       <button onClick={() => setOpen(v)} className="block w-full" title="See the jury">
                         <span className="block text-3xl">{v.keep ? organ(v.part.kind) : "☠️"}</span>
                         <span className="block text-sm font-black leading-tight">{v.part.name}</span>
+                        {swatches(v)}
                         <span className="block tracking-widest">
                           {v.votes.map((x) => (x.copy === null ? "🤷" : x.copy >= 0.5 ? "👍" : "👎")).join("")}
                         </span>
@@ -315,7 +357,7 @@ export default function Home() {
               </div>
             </div>
 
-            {mvp && <MvpSite mvp={mvp} score={score} />}
+            {mvp && <MvpSite mvp={mvp} skin={skin} score={score} />}
           </>
         )}
       </section>
@@ -331,71 +373,6 @@ function Loading({ emoji, text, sub }: { emoji: string; text: string; sub: strin
       <p className="wobble text-7xl">{emoji}</p>
       <p className="font-creepy mt-3 text-4xl text-lime-200">{text}</p>
       <p className="mt-1 text-lg text-lime-100/50">{sub}</p>
-    </div>
-  );
-}
-
-// The generated MVP: a landing page for the stitched startup, in a fake browser.
-function MvpSite({ mvp, score }: { mvp: Mvp; score: number }) {
-  const [joined, setJoined] = useState(false);
-  const domain = `${mvp.name.toLowerCase().replace(/[^a-z0-9]/g, "")}.ly`;
-
-  function download() {
-    const html = `<!doctype html><meta charset="utf-8"><title>${mvp.name}</title>
-<body style="font-family:system-ui;margin:0;background:#fafafa;color:#111;text-align:center">
-<div style="max-width:760px;margin:0 auto;padding:64px 20px">
-<div style="font-size:72px">${mvp.emoji}</div><h1 style="font-size:52px;margin:8px 0">${mvp.name}</h1>
-<h2 style="font-weight:500;color:#444">${mvp.tagline}</h2><p style="font-size:19px;color:#555">${mvp.pitch}</p>
-<div style="display:flex;gap:16px;flex-wrap:wrap;justify-content:center;margin:36px 0">${mvp.features
-      .map(
-        (f) =>
-          `<div style="flex:1;min-width:200px;background:#fff;border:1px solid #ddd;border-radius:16px;padding:20px"><div style="font-size:36px">${f.emoji}</div><b>${f.title}</b><p style="color:#555">${f.text}</p></div>`,
-      )
-      .join("")}</div>
-<p><b>${mvp.price}</b></p><a href="#" style="display:inline-block;background:#111;color:#fff;padding:16px 32px;border-radius:999px;font-size:20px;text-decoration:none">${mvp.cta}</a>
-<p style="color:#999;margin-top:48px">Stitched together by Frankenstartup from the organs of dead startups.</p></div></body>`;
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(new Blob([html], { type: "text/html" }));
-    a.download = `${domain}.html`;
-    a.click();
-    URL.revokeObjectURL(a.href);
-  }
-
-  return (
-    <div className="alive overflow-hidden rounded-3xl border-4 border-lime-400">
-      <div className="flex items-center gap-3 bg-stone-800 px-4 py-2">
-        <span className="text-sm">🔴 🟡 🟢</span>
-        <span className="flex-1 truncate rounded-full bg-stone-900 px-4 py-1 text-sm text-stone-300">
-          https://{domain}
-        </span>
-        <button onClick={download} className="rounded-full bg-lime-400 px-4 py-1 text-sm font-black text-black hover:bg-lime-300">
-          ⬇️ Download site
-        </button>
-      </div>
-      <div className="bg-stone-50 px-6 py-10 text-center text-stone-900">
-        <p className="font-creepy text-2xl text-lime-600">⚡ IT&apos;S ALIVE! ⚡</p>
-        <p className="text-7xl">{mvp.emoji}</p>
-        <h2 className="mt-2 text-5xl font-black tracking-tight sm:text-6xl">{mvp.name}</h2>
-        <p className="mt-2 text-2xl font-medium text-stone-600">{mvp.tagline}</p>
-        <p className="mx-auto mt-3 max-w-2xl text-lg text-stone-500">{mvp.pitch}</p>
-        <div className="mx-auto mt-8 grid max-w-4xl gap-4 sm:grid-cols-3">
-          {mvp.features.map((f) => (
-            <div key={f.title} className="rounded-2xl border border-stone-200 bg-white p-5">
-              <p className="text-4xl">{f.emoji}</p>
-              <p className="mt-1 text-xl font-bold">{f.title}</p>
-              <p className="mt-1 text-stone-500">{f.text}</p>
-            </div>
-          ))}
-        </div>
-        <p className="mt-7 text-xl font-bold">{mvp.price}</p>
-        <button
-          onClick={() => setJoined(true)}
-          className="mt-3 rounded-full bg-stone-900 px-8 py-4 text-xl font-bold text-white transition hover:scale-105"
-        >
-          {joined ? "🎉 You're customer #1" : mvp.cta}
-        </button>
-        <p className="mt-6 text-sm text-stone-400">Frankenstartup success rating: {score}%</p>
-      </div>
     </div>
   );
 }

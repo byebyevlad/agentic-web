@@ -9,6 +9,20 @@ export const AutopsySchema = z.object({
         what_it_did: z.string().describe("One sentence on what the startup did"),
         died: z.string().describe("Year it shut down, e.g. 2023. Just the year, or \"unknown\"."),
         cause_of_death: z.string().describe("One sentence on why it failed"),
+        design: z
+          .object({
+            primary: z.string().describe("Main brand colour as a hex code, e.g. #FF5A1F"),
+            accent: z.string().describe("Secondary brand colour as a hex code"),
+            background: z.string().describe("Page background colour of its website as a hex code"),
+            text: z.string().describe("Body text colour as a hex code, readable on the background"),
+            font: z
+              .string()
+              .describe("Typeface style. One of: serif, geometric sans, rounded sans, monospace, condensed display, handwritten"),
+            corners: z.string().describe("Shape language. One of: sharp, soft, pill"),
+            layout: z.string().describe("Website layout. One of: centered, split, big type"),
+            vibe: z.string().describe("The visual style in 3-6 words, e.g. 'playful pastel food illustrations'"),
+          })
+          .describe("The startup's real brand and website design, as best documented"),
         parts: z
           .array(
             z.object({
@@ -29,6 +43,7 @@ export const AutopsySchema = z.object({
 
 export type Autopsy = z.infer<typeof AutopsySchema>;
 export type Startup = Autopsy["startups"][number];
+export type Design = Startup["design"];
 
 // ── Step 2 output: a jury verdict per part ─────────────────────────────────
 // Three Parallel Decisions question types act as three judges.

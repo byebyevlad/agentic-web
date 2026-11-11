@@ -12,9 +12,10 @@ type ResponsesOutput = {
 // content of its landing page (Parallel Responses API, JSON schema output).
 export async function POST(req: Request) {
   try {
-    const { query, parts } = (await req.json()) as {
+    const { query, parts, vibes = [] } = (await req.json()) as {
       query: string;
       parts: { name: string; detail: string; startup: string }[];
+      vibes?: string[];
     };
     if (!query || !Array.isArray(parts) || parts.length === 0) {
       return Response.json({ error: "query and parts are required" }, { status: 400 });
@@ -38,7 +39,10 @@ export async function POST(req: Request) {
           `A founder wants to build: "${query}". They are stitching a new startup together from ` +
           `parts of dead startups. Combine these parts into ONE coherent, genuinely promising startup ` +
           `idea and write the content of its launch landing page. Be punchy and a little funny.\n\n` +
-          parts.map((p) => `- ${p.name} (from ${p.startup}): ${p.detail}`).join("\n"),
+          parts.map((p) => `- ${p.name} (from ${p.startup}): ${p.detail}`).join("\n") +
+          (vibes.length
+            ? `\n\nThe page will be styled with this harvested visual identity, so match its tone: ${vibes.join("; ")}.`
+            : ""),
       }),
     });
     if (!res.ok) throw new Error(`Responses ${res.status}: ${await res.text()}`);
