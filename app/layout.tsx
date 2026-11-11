@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Agentic Web Starter",
+  title: "Frankenstartup",
   description: "AI with web access, built on Parallel",
 };
 

@@ -5,6 +5,15 @@ Goal for the session: turn this into a product demo fast. Keep code small and re
 
 @AGENTS.md
 
+## Product: Frankenstartup
+
+Vague prompt ("make me a financial product") -> find dead startups in that space, take them apart into parts (features, pricing, team, funding...), ask per part "did this cause the failure?", and stitch the surviving parts into a new product.
+
+- `app/api/autopsy/route.ts`: Parallel Task (JSON schema `AutopsySchema` in `lib/franken.ts`) -> 4 dead startups x 5 parts. Slow: 1-2 min on `base` (override with env `TASK_PROCESSOR`).
+- `app/api/decide/route.ts`: Parallel Decisions API (`POST /v1/decisions`, plain fetch, not in the SDK). One request per startup, one `noul` question per part; answer is the probability the part caused the failure. Under 1s.
+- `app/page.tsx`: runs autopsy, then decide per startup in parallel. Parts with blame < `KEEP_BELOW` (0.5) are copied. Autopsy results are cached in `localStorage` per prompt so a repeated prompt skips the slow step; Decisions always run live.
+- The older `/api/search` and `/api/task` routes and `lib/brief.ts` are unused by the page now.
+
 ## Stack
 
 - Next.js 16 (App Router) + React 19 + TypeScript, Tailwind CSS 4 (no config file, `@import "tailwindcss"` in `app/globals.css`)
