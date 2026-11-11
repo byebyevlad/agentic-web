@@ -71,8 +71,8 @@ export type Verdict = {
 export const MvpSchema = z.object({
   name: z.string().describe("A catchy one-word startup name"),
   emoji: z.string().describe("One emoji that works as the logo"),
-  tagline: z.string().describe("Landing page headline, under 10 words"),
-  pitch: z.string().describe("Two sentences: what it is and why it will not die like its donors"),
+  tagline: z.string().describe("Landing page headline: one plain sentence under 9 words that says what you get"),
+  pitch: z.string().describe("Two short sentences, under 35 words in total: what it is and why it will not die like its donors"),
   features: z
     .array(
       z.object({

@@ -38,7 +38,9 @@ export async function POST(req: Request) {
         input:
           `A founder wants to build: "${query}". They are stitching a new startup together from ` +
           `parts of dead startups. Combine these parts into ONE coherent, genuinely promising startup ` +
-          `idea and write the content of its launch landing page. Be punchy and a little funny.\n\n` +
+          `idea and write the content of its launch landing page. Write like a blunt human founder: ` +
+          `plain, specific and a little funny. No em dashes, no three-part slogans ("No X. No Y. No Z."), ` +
+          `no words like seamless, effortless, reimagined, revolutionary, unlock or elevate.\n\n` +
           parts.map((p) => `- ${p.name} (from ${p.startup}): ${p.detail}`).join("\n") +
           (vibes.length
             ? `\n\nThe page will be styled with this harvested visual identity, so match its tone: ${vibes.join("; ")}.`
