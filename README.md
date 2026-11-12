@@ -1,3 +1,4 @@
+
 # 🧟 Frankenstartup
 
 **Dig up dead startups. Steal the good organs. Leave what killed them.**
@@ -14,6 +15,9 @@ Frankenstartup is a game for founders too lazy to do their own research. Give it
 2. **Puts every organ on trial.** A jury of three judges rules on whether it helped or helped kill its host.
 3. **Lets you play.** Drag organs onto the slab. Each drop reveals the verdict and moves a live success rating, from "⚰️ Dead on arrival" to "🦄 Unicorn material". Or press "I'm lazy" and the jury picks for you.
 4. **Builds the MVP**: a name, pitch, features, pricing and a landing page whose colours, typeface, shapes and layout are stitched together from the dead startups' designs. You can download it as one HTML file.
+
+<img width="1465" height="821" alt="Screenshot 2026-11-12 at 01 24 38" src="https://github.com/user-attachments/assets/8e2ab5ca-ae94-465f-8afd-7c3fcb7501d0" />
+<img width="1448" height="835" alt="Screenshot 2026-11-12 at 01 24 59" src="https://github.com/user-attachments/assets/439c3660-69d4-465d-a606-750ad3549a03" />
 
 ## How it works
 
