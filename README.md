@@ -1,50 +1,69 @@
-# Agentic Web Starter
+# 🧟 Frankenstartup
 
-Build as a part of https://luma.com/rytzr0zh?tk=QsMzK1
+**Dig up dead startups. Steal the good organs. Leave what killed them.**
 
-**Update: we've won!**
+One of the winning projects at [Agentic Web Build Night](https://luma.com/rytzr0zh), hosted by [Parallel Web Systems](https://parallel.ai) with The No Agenda Club in London on 11 November 2026: two hours of building, then live demos.
 
-Hackathon starter: Next.js + Parallel (web search / deep research) + optional Claude brief.
+**Live:** https://agentic-web-rho.vercel.app
 
-Live: https://agentic-web-rho.vercel.app
+## What it does
+
+Frankenstartup is a game for founders too lazy to do their own research. Give it a one-line idea, such as "food delivery", and it:
+
+1. **Digs up** real startups in that space that failed, and takes each one apart into organs: features, pricing, business model, go-to-market, funding, and its visual design.
+2. **Puts every organ on trial.** A jury of three judges rules on whether it helped or helped kill its host.
+3. **Lets you play.** Drag organs onto the slab. Each drop reveals the verdict and moves a live success rating, from "⚰️ Dead on arrival" to "🦄 Unicorn material". Or press "I'm lazy" and the jury picks for you.
+4. **Builds the MVP**: a name, pitch, features, pricing and a landing page whose colours, typeface, shapes and layout are stitched together from the dead startups' designs. You can download it as one HTML file.
+
+## How it works
+
+A Next.js app with three server routes. All the research, judging and writing runs on [Parallel's APIs](https://docs.parallel.ai), with no other AI provider.
+
+| Step | Route | Parallel API | Time |
+|---|---|---|---|
+| Autopsy: find dead startups, their parts and their design | `/api/autopsy` | [Responses](https://docs.parallel.ai/responses-api/responses-quickstart.md), with a JSON schema | ~10–15s |
+| Jury: judge every part | `/api/decide` | [Decisions](https://docs.parallel.ai/decisions/decisions-quickstart.md) | ~1s |
+| MVP: write the landing page | `/api/mvp` | Responses, with a JSON schema | ~3s |
+
+The jury is three Decisions question types asked about the same part in one request:
+
+| Judge | Question type | Asks |
+|---|---|---|
+| 🧑‍⚕️ The Coroner | probability | Was it innocent of the death? |
+| 🤑 The VC | choice: copy / bury / unknown | Would you copy it? |
+| 🎲 The Gambler | score: mistake / neutral / strength | Mistake or strength? |
+
+Each answer becomes a "worth copying" confidence, and the majority of the judges who answered decides. The game, the success rating and the design mixing all run in the browser.
+
+Verdicts are estimates from web evidence, not ground truth, and the harvested design is the research model's account of each brand rather than scraped from the original sites.
 
 ## Run locally
 
 ```bash
 npm install
-cp .env.example .env.local   # then fill in the keys
+cp .env.example .env.local   # add PARALLEL_API_KEY from https://platform.parallel.ai
 npm run dev                  # http://localhost:3000
 ```
-
-Keys:
-- `PARALLEL_API_KEY` (required): https://platform.parallel.ai
-- `ANTHROPIC_API_KEY` (optional, enables the Claude summary): https://platform.claude.com
-
-## Test the routes
-
-```bash
-curl -s localhost:3000/api/search -H 'content-type: application/json' \
-  -d '{"query":"Parallel Web Systems company"}' | jq '.brief, .sources[:3]'
-
-curl -s localhost:3000/api/task -H 'content-type: application/json' \
-  -d '{"query":"Parallel Web Systems company"}' | jq
-```
-
-`/api/search` takes about 1-10s. `/api/task` polls a Parallel Task run and can take a minute or more.
 
 ## Deploy to Vercel
 
 ```bash
 npm i -g vercel
 vercel login
-vercel link                              # create/link the project
+vercel link
 vercel env add PARALLEL_API_KEY production
-vercel env add ANTHROPIC_API_KEY production
 vercel --prod
 ```
 
-Redeploy after code changes with `vercel --prod`. Env var changes also need a redeploy.
+Redeploy with `vercel --prod` after code or env var changes.
 
-## Where to edit
+## Code
 
-See `CLAUDE.md` for the file layout and conventions.
+- `app/page.tsx`: the game (tray, slab, success rating, jury card)
+- `app/mvp-site.tsx`: the generated landing page and design mixing
+- `app/api/autopsy`, `app/api/decide`, `app/api/mvp`: the three Parallel steps
+- `lib/franken.ts`: schemas and the jury definition
+
+`CLAUDE.md` has the full layout and conventions. The `/api/search` and `/api/task` routes are left over from the starter the project began as and are not used by the game.
+
+Built with [Claude Code](https://claude.com/claude-code).
