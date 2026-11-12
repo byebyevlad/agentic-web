@@ -1,5 +1,9 @@
 # Agentic Web Starter
 
+Build as a part of https://luma.com/rytzr0zh?tk=QsMzK1
+
+**Update: we've won!**
+
 Hackathon starter: Next.js + Parallel (web search / deep research) + optional Claude brief.
 
 Live: https://agentic-web-rho.vercel.app
